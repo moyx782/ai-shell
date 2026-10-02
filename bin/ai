@@ -9,7 +9,7 @@ import shutil
 import signal
 import subprocess
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 try:
     import readline  # Enables line editing and in-process input history.
@@ -21,6 +21,8 @@ HELP = """直接输入任务，回车发送。
 /model          查看模型设置并列出可用模型
 /model 提供商/模型  切换模型，下一轮生效，保留会话
 /model default  取消模型覆盖，交由 OpenCode 选择
+/plan [任务]    切换到规划模式，可同时发送任务
+/build [任务]   切换到执行模式，可同时发送任务
 /status         当前目录、会话和 Git 状态
 /git            查看 Git diff
 /files          列出项目文件（最多 200 个）
@@ -106,7 +108,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", action="version", version=f"ai-shell {VERSION}")
     parser.add_argument("--model", "-m")
-    parser.add_argument("--agent")
+    agents = parser.add_mutually_exclusive_group()
+    agents.add_argument("--agent", help="指定 OpenCode agent，例如 plan 或 build")
+    agents.add_argument("--plan", dest="agent", action="store_const", const="plan",
+                        help="以规划模式启动（等同于 --agent plan）")
     parser.add_argument("--session", "-s", help="恢复指定 OpenCode 会话")
     parser.add_argument("prompt", nargs="*", help="进入 REPL 后先执行的任务")
     options = parser.parse_args()
@@ -118,7 +123,8 @@ def main():
     print("输入 /help 查看命令；exit 退出。")
     while True:
         try:
-            cmd = pending or input("ai> ")
+            prompt = f"ai[{options.agent}]> " if options.agent else "ai> "
+            cmd = pending or input(prompt)
             pending = ""
             cmd = cmd.strip()
             if not cmd:
@@ -130,6 +136,12 @@ def main():
             argument = pieces[1] if len(pieces) > 1 else ""
             if name == "/help":
                 print(HELP)
+            elif name in ("/plan", "/build"):
+                options.agent = name[1:]
+                label = "规划" if options.agent == "plan" else "执行"
+                print(f"[已切换到{label}模式；保留当前会话，使用 OpenCode {options.agent} agent]")
+                if argument:
+                    session = ask(argument, session, options)
             elif name in ("/model", "/models"):
                 model = argument.strip()
                 if not model or model == "list":
@@ -149,7 +161,7 @@ def main():
                 session = None
                 print("[新会话将在下次发送任务时创建]")
             elif name == "/status":
-                print(f"目录：{Path.cwd()}\n会话：{session or '尚未创建'}\n模型设置：{options.model or '由 OpenCode 选择（未指定覆盖）'}", flush=True)
+                print(f"目录：{Path.cwd()}\n会话：{session or '尚未创建'}\n模型设置：{options.model or '由 OpenCode 选择（未指定覆盖）'}\nAgent：{options.agent or '由 OpenCode 选择（未指定覆盖）'}", flush=True)
                 local(["git", "status", "--short", "--branch"])
             elif name == "/git":
                 local(["git", "--no-pager", "diff"])

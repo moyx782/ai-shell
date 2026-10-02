@@ -86,7 +86,7 @@ class ShellTests(unittest.TestCase):
 
     def test_eof_and_version(self):
         self.run_ai('')
-        self.assertIn('ai-shell 0.1.0', self.run_ai('', '--version'))
+        self.assertIn('ai-shell 0.1.1', self.run_ai('', '--version'))
         self.assertFalse(self.log.exists())
 
     def test_install_and_upgrade_preserves_backup(self):
@@ -110,6 +110,28 @@ class ShellTests(unittest.TestCase):
             result = subprocess.run(['bash', str(ROOT / 'install.sh'), *args],
                                     capture_output=True, text=True, env=self.env, timeout=15)
             self.assertEqual(result.returncode, 2)
+
+    def test_plan_build_switch_preserves_session(self):
+        output = self.run_ai('/plan\nfirst\n/build implement it\n/plan review it\nexit\n')
+        calls = self.calls()
+        self.assertEqual([c[c.index('--agent') + 1] for c in calls], ['plan', 'build', 'plan'])
+        self.assertEqual(calls[1][-1], 'implement it')
+        for call in calls[1:]:
+            self.assertEqual(call[call.index('--session') + 1], 'ses_test')
+        self.assertIn('ai[plan]>', output)
+        self.assertIn('ai[build]>', output)
+        self.assertIn('ai --session ses_test --agent plan', output)
+
+    def test_plan_startup_and_new_preserve_agent(self):
+        self.run_ai('/new\nsecond\nexit\n', '--plan', 'first')
+        for call in self.calls():
+            self.assertEqual(call[call.index('--agent') + 1], 'plan')
+            self.assertNotIn('--session', call)
+
+    def test_plan_status_and_no_implicit_request(self):
+        output = self.run_ai('/plan\n/status\nexit\n')
+        self.assertIn('Agent：plan', output)
+        self.assertFalse(self.log.exists())
 
 
 if __name__ == '__main__':

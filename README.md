@@ -49,7 +49,9 @@ ai
 | `/model`、`/model list`、`/models` | 显示模型覆盖设置并列出可用模型 |
 | `/model provider/model` | 下一轮切换到指定模型，保留对话 |
 | `/model default` | 取消覆盖，由 OpenCode 按会话或配置选择模型 |
-| `/status` | 当前目录、会话 ID、模型覆盖设置与 Git 状态 |
+| `/plan [任务]` | 切换到规划模式，可同时发送任务，保留会话 |
+| `/build [任务]` | 切换到执行模式，可同时发送任务，保留会话 |
+| `/status` | 当前目录、会话 ID、模型与 agent 设置、Git 状态 |
 | `/git` | 未暂存的 Git diff |
 | `/files` | 最多列出 200 个项目文件；没有 rg 时仅列当前目录 |
 | `/run npm test` | 通过本地 shell 执行命令 |
@@ -68,11 +70,27 @@ ai --help
 ai --version
 ai --model provider/model
 ai --agent build
+ai --plan
+ai --agent plan "先分析问题，给出实施计划"
 ai "分析当前项目"
 ai --session ses_example --model provider/model
 ```
 
 退出时会打印恢复命令，包含当前 session ID 和显式设置的模型、agent。请在原项目目录运行该命令。新启动的 `ai` 默认新建会话，不会自动续接其他终端的最近对话。
+
+## 先规划，再执行
+
+```text
+ai> /plan
+ai[plan]> 分析登录问题，先给出修改计划
+ai[plan]> 调整第二步，补充测试方案
+ai[plan]> /build
+ai[build]> 按刚才的计划实施
+```
+
+也可以直接输入 `/plan 分析登录问题` 或 `/build 按计划实施`。模式会持续到下一次切换，`/new` 和 `/cd` 重置会话但保留当前 agent。`ai --plan` 等同于 `ai --agent plan`。
+
+规划模式实际传递 `--agent plan`，使用 [OpenCode 的 Plan agent](https://opencode.ai/docs/agents/#use-plan)。具体工具权限由 OpenCode 版本及本机、项目配置决定，不是操作系统级只读沙箱；OpenCode 可能允许写入计划文件。显式的 `/run` 仍直接执行本地命令，不受 Plan agent 约束。切换 `/build` 本身不会开始执行，需要再发送任务。
 
 ## 更新与卸载
 
